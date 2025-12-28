@@ -83,7 +83,6 @@ start_terminal() {
         --interface 0.0.0.0 \
         --writable \
         --client-option fontSize=14 \
-        --client-option fontFamily="'JetBrains Mono', 'Fira Code', Menlo, Monaco, monospace" \
         --client-option scrollback=50000 \
         --client-option cursorBlink=true \
         --client-option cursorStyle=bar \
