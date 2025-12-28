@@ -1,5 +1,49 @@
 # Changelog
 
+## 1.5.0
+
+### ✨ New Features
+- **Permission Bypass Mode**: New `skip_permissions` config option
+  - Enables `--dangerously-skip-permissions` flag for Claude
+  - Configurable via Home Assistant UI
+  - Useful for automated workflows and trusted environments
+
+- **TMUX-like Terminal Scroll**: Custom terminal UI with improved scrolling
+  - No auto-scroll - you control the view
+  - PageUp/PageDown for page scrolling
+  - Shift+Arrow keys for line-by-line scroll
+  - Ctrl+End/Home to jump to bottom/top
+  - Visual indicator when new output arrives
+  - Catppuccin Mocha dark theme
+
+### 🛠️ Added Tools
+**Python & Libraries:**
+- `py3-requests` - HTTP library for API operations
+- `py3-aiohttp` - Async HTTP client (ideal for Home Assistant API)
+- `py3-yaml` - YAML parsing for HA configurations
+- `py3-beautifulsoup4` - Web scraping and HTML parsing
+
+**Development Tools:**
+- `git` - Version control
+- `vim` - Advanced text editor
+
+**Database:**
+- `postgresql-client` - PostgreSQL client (psql)
+
+**Network Utilities:**
+- `wget` - File downloads
+- `netcat-openbsd` - Network debugging and testing
+
+**Productivity Tools:**
+- `tree` - Directory structure visualization
+
+### 🔧 Improvements
+- **Simplified run.sh**: Cleaner, more maintainable startup script
+- **Pre-installed ttyd**: Faster container startup
+- **Additional volume mappings**: Access to addons, backup, share, media directories
+- **Updated session picker**: Shows system info and available tools
+- **Git safe directory**: Auto-configured for all directories
+
 ## 1.3.2
 
 ### 🐛 Bug Fixes
