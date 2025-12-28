@@ -1,97 +1,151 @@
 #!/bin/bash
 
 # Claude Session Picker - Interactive menu for choosing Claude session type
-# Provides options for new session, continue, resume, manual command, or regular shell
+# Uses CLAUDE_CMD env var for proper command (includes --dangerously-skip-permissions if enabled)
+
+# Get Claude command (from env or default)
+get_claude_cmd() {
+    if [ -n "$CLAUDE_CMD" ]; then
+        echo "$CLAUDE_CMD"
+    else
+        echo "node $(which claude)"
+    fi
+}
 
 show_banner() {
     clear
     echo "╔══════════════════════════════════════════════════════════════╗"
-    echo "║                    🤖 Claude Terminal                        ║"
-    echo "║                   Interactive Session Picker                ║"
+    echo "║                    Claude Terminal                           ║"
+    echo "║                 Interactive Session Picker                   ║"
     echo "╚══════════════════════════════════════════════════════════════╝"
     echo ""
+
+    # Show if bypass mode is enabled
+    if [[ "$CLAUDE_CMD" == *"--dangerously-skip-permissions"* ]]; then
+        echo "  [!] Permission bypass ENABLED"
+        echo ""
+    fi
 }
 
 show_menu() {
     echo "Choose your Claude session type:"
     echo ""
-    echo "  1) 🆕 New interactive session (default)"
-    echo "  2) ⏩ Continue most recent conversation (-c)"
-    echo "  3) 📋 Resume from conversation list (-r)"
-    echo "  4) ⚙️  Custom Claude command (manual flags)"
-    echo "  5) 🔐 Authentication helper (if paste doesn't work)"
-    echo "  6) 🐚 Drop to bash shell"
-    echo "  7) ❌ Exit"
+    echo "  1) New interactive session (default)"
+    echo "  2) Continue most recent conversation (-c)"
+    echo "  3) Resume from conversation list (-r)"
+    echo "  4) Custom Claude command"
+    echo "  5) Authentication helper"
+    echo "  6) Drop to bash shell"
+    echo "  7) System info (psql, git, python versions)"
+    echo "  8) Exit"
     echo ""
 }
 
 get_user_choice() {
     local choice
-    # Send prompt to stderr to avoid capturing it with the return value
-    printf "Enter your choice [1-7] (default: 1): " >&2
+    printf "Enter your choice [1-8] (default: 1): " >&2
     read -r choice
-    
-    # Default to 1 if empty
+
     if [ -z "$choice" ]; then
         choice=1
     fi
-    
-    # Trim whitespace and return only the choice
-    choice=$(echo "$choice" | tr -d '[:space:]')
-    echo "$choice"
+
+    echo "$choice" | tr -d '[:space:]'
 }
 
 launch_claude_new() {
-    echo "🚀 Starting new Claude session..."
-    sleep 1
-    exec node "$(which claude)"
+    echo "Starting new Claude session..."
+    sleep 0.5
+    local cmd
+    cmd=$(get_claude_cmd)
+    exec $cmd
 }
 
 launch_claude_continue() {
-    echo "⏩ Continuing most recent conversation..."
-    sleep 1
-    exec node "$(which claude)" -c
+    echo "Continuing most recent conversation..."
+    sleep 0.5
+    local cmd
+    cmd=$(get_claude_cmd)
+    exec $cmd -c
 }
 
 launch_claude_resume() {
-    echo "📋 Opening conversation list for selection..."
-    sleep 1
-    exec node "$(which claude)" -r
+    echo "Opening conversation list..."
+    sleep 0.5
+    local cmd
+    cmd=$(get_claude_cmd)
+    exec $cmd -r
 }
 
 launch_claude_custom() {
     echo ""
-    echo "Enter your Claude command (e.g., 'claude --help' or 'claude -p \"hello\"'):"
-    echo "Available flags: -c (continue), -r (resume), -p (print), --model, etc."
-    echo -n "> claude "
+    echo "Enter additional Claude flags (e.g., '--help' or '-p \"hello\"'):"
+    echo "Base command: $(get_claude_cmd)"
+    echo -n "> "
     read -r custom_args
-    
+
     if [ -z "$custom_args" ]; then
-        echo "No arguments provided. Starting default session..."
         launch_claude_new
     else
-        echo "🚀 Running: claude $custom_args"
-        sleep 1
-        # Use eval to properly handle quoted arguments
-        eval "exec node \$(which claude) $custom_args"
+        echo "Running: $(get_claude_cmd) $custom_args"
+        sleep 0.5
+        local cmd
+        cmd=$(get_claude_cmd)
+        eval "exec $cmd $custom_args"
     fi
 }
 
 launch_auth_helper() {
-    echo "🔐 Starting authentication helper..."
-    sleep 1
-    exec /opt/scripts/claude-auth-helper.sh
+    echo "Starting authentication helper..."
+    sleep 0.5
+    if [ -f /opt/scripts/claude-auth-helper.sh ]; then
+        exec /opt/scripts/claude-auth-helper.sh
+    else
+        echo "Auth helper not found. Run 'claude' to authenticate."
+        sleep 2
+        launch_claude_new
+    fi
 }
 
 launch_bash_shell() {
-    echo "🐚 Dropping to bash shell..."
-    echo "Tip: Run 'claude' manually when ready"
-    sleep 1
+    echo "Dropping to bash shell..."
+    echo ""
+    echo "Available tools:"
+    echo "  - claude    : Claude Code CLI"
+    echo "  - psql      : PostgreSQL client"
+    echo "  - git       : Version control"
+    echo "  - python3   : Python interpreter"
+    echo "  - pip       : Python package manager"
+    echo ""
+    sleep 0.5
     exec bash
 }
 
-exit_session_picker() {
-    echo "👋 Goodbye!"
+show_system_info() {
+    echo ""
+    echo "=== System Info ==="
+    echo ""
+    echo "Claude Code:"
+    claude --version 2>/dev/null || echo "  Not found"
+    echo ""
+    echo "PostgreSQL client:"
+    psql --version 2>/dev/null || echo "  Not found"
+    echo ""
+    echo "Git:"
+    git --version 2>/dev/null || echo "  Not found"
+    echo ""
+    echo "Python:"
+    python3 --version 2>/dev/null || echo "  Not found"
+    echo ""
+    echo "Node.js:"
+    node --version 2>/dev/null || echo "  Not found"
+    echo ""
+    printf "Press Enter to continue..." >&2
+    read -r
+}
+
+exit_picker() {
+    echo "Goodbye!"
     exit 0
 }
 
@@ -101,43 +155,25 @@ main() {
         show_banner
         show_menu
         choice=$(get_user_choice)
-        
+
         case "$choice" in
-            1)
-                launch_claude_new
-                ;;
-            2)
-                launch_claude_continue
-                ;;
-            3)
-                launch_claude_resume
-                ;;
-            4)
-                launch_claude_custom
-                ;;
-            5)
-                launch_auth_helper
-                ;;
-            6)
-                launch_bash_shell
-                ;;
-            7)
-                exit_session_picker
-                ;;
+            1) launch_claude_new ;;
+            2) launch_claude_continue ;;
+            3) launch_claude_resume ;;
+            4) launch_claude_custom ;;
+            5) launch_auth_helper ;;
+            6) launch_bash_shell ;;
+            7) show_system_info ;;
+            8) exit_picker ;;
             *)
                 echo ""
-                echo "❌ Invalid choice: '$choice'"
-                echo "Please select a number between 1-7"
-                echo ""
-                printf "Press Enter to continue..." >&2
-                read -r
+                echo "Invalid choice: '$choice'"
+                echo "Please select 1-8"
+                sleep 1
                 ;;
         esac
     done
 }
 
-# Handle cleanup on exit
-trap 'exit_session_picker' EXIT INT TERM
-
-# Run main function
+trap 'exit_picker' EXIT INT TERM
 main "$@"

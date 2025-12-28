@@ -1,37 +1,42 @@
 ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
-# Install packages in a single layer to minimize image size
-# Add retry logic for npm installation to handle network issues
+# Install all required packages in single layer
+# Includes: Node.js, PostgreSQL client, Git, terminal tools
 RUN apk add --no-cache \
     nodejs \
     npm \
     bash \
     curl \
     nano \
-    && (npm config set registry https://registry.npmjs.org/ || true) \
-    && (npm config set fetch-retries 3 || true) \
-    && (npm config set fetch-retry-mintimeout 20000 || true) \
-    && (npm config set fetch-retry-maxtimeout 120000 || true) \
-    && (npm config set fetch-timeout 300000 || true) \
+    git \
+    openssh-client \
+    postgresql-client \
+    ttyd \
+    jq \
+    python3 \
+    py3-pip \
+    && npm config set registry https://registry.npmjs.org/ \
+    && npm config set fetch-retries 3 \
+    && npm config set fetch-timeout 300000 \
     && for i in 1 2 3; do \
         echo "Attempt $i: Installing Claude Code CLI..." && \
         npm install -g @anthropic-ai/claude-code@latest && \
         echo "Successfully installed Claude Code CLI" && \
         break || \
-        (echo "Attempt $i failed, retrying in 10 seconds..." && sleep 10); \
+        (echo "Attempt $i failed, retrying..." && sleep 10); \
     done \
     && npm cache clean --force
 
-# Create directory for Claude configuration and set working directory
-RUN mkdir -p /config/claude-config
+# Create directories
+RUN mkdir -p /config/claude-config /data/.config/claude
+
 WORKDIR /config
 
-# Copy startup script and modular scripts
+# Copy startup scripts and custom HTML
 COPY run.sh /run.sh
 COPY scripts/ /opt/scripts/
-RUN chmod +x /run.sh \
-    && chmod +x /opt/scripts/*.sh
+COPY html/ /opt/html/
+RUN chmod +x /run.sh /opt/scripts/*.sh
 
-# Use exec form for better signal handling
 CMD ["/run.sh"]
