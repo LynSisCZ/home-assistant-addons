@@ -93,7 +93,7 @@ start_terminal() {
 
 # Main
 main() {
-    bashio::log.info "=== Claude Terminal v1.5.0 ==="
+    bashio::log.info "=== Claude Terminal v1.5.1 ==="
 
     init_environment
     setup_scripts
