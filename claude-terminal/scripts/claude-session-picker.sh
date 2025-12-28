@@ -8,7 +8,7 @@ get_claude_cmd() {
     if [ -n "$CLAUDE_CMD" ]; then
         echo "$CLAUDE_CMD"
     else
-        echo "node $(which claude)"
+        echo "claude"
     fi
 }
 
@@ -53,28 +53,35 @@ get_user_choice() {
     echo "$choice" | tr -d '[:space:]'
 }
 
-launch_claude_new() {
-    echo "Starting new Claude session..."
-    sleep 0.5
+# Run claude with optional extra args
+run_claude() {
+    local extra_args="$1"
     local cmd
     cmd=$(get_claude_cmd)
-    exec $cmd
+
+    if [ -n "$extra_args" ]; then
+        echo "Running: $cmd $extra_args"
+    else
+        echo "Starting Claude..."
+    fi
+    sleep 0.5
+
+    # Use eval to properly handle IS_SANDBOX=1 prefix
+    eval "exec $cmd $extra_args"
+}
+
+launch_claude_new() {
+    run_claude ""
 }
 
 launch_claude_continue() {
     echo "Continuing most recent conversation..."
-    sleep 0.5
-    local cmd
-    cmd=$(get_claude_cmd)
-    exec $cmd -c
+    run_claude "-c"
 }
 
 launch_claude_resume() {
     echo "Opening conversation list..."
-    sleep 0.5
-    local cmd
-    cmd=$(get_claude_cmd)
-    exec $cmd -r
+    run_claude "-r"
 }
 
 launch_claude_custom() {
@@ -87,11 +94,7 @@ launch_claude_custom() {
     if [ -z "$custom_args" ]; then
         launch_claude_new
     else
-        echo "Running: $(get_claude_cmd) $custom_args"
-        sleep 0.5
-        local cmd
-        cmd=$(get_claude_cmd)
-        eval "exec $cmd $custom_args"
+        run_claude "$custom_args"
     fi
 }
 
@@ -117,6 +120,10 @@ launch_bash_shell() {
     echo "  - python3   : Python interpreter"
     echo "  - pip       : Python package manager"
     echo ""
+    if [[ "$CLAUDE_CMD" == *"--dangerously-skip-permissions"* ]]; then
+        echo "Bypass mode command: $CLAUDE_CMD"
+        echo ""
+    fi
     sleep 0.5
     exec bash
 }

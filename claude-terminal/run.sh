@@ -32,12 +32,14 @@ init_environment() {
 
 # Build Claude launch command based on config
 get_claude_command() {
-    local cmd="node $(which claude)"
+    local cmd=""
 
-    # Check skip_permissions setting
+    # Check skip_permissions setting - needs IS_SANDBOX=1 for root
     if bashio::config.true 'skip_permissions'; then
-        cmd="$cmd --dangerously-skip-permissions"
-        bashio::log.warning "Running Claude with --dangerously-skip-permissions"
+        cmd="IS_SANDBOX=1 claude --dangerously-skip-permissions"
+        bashio::log.warning "Running Claude with --dangerously-skip-permissions (sandbox mode)"
+    else
+        cmd="claude"
     fi
 
     echo "$cmd"
