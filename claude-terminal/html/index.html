@@ -28,6 +28,7 @@
             font-family: monospace;
             display: none;
             z-index: 1000;
+            cursor: pointer;
         }
         #scroll-indicator.visible {
             display: block;
@@ -42,15 +43,12 @@
             background: #45475a;
             border-radius: 4px;
         }
-        .xterm-viewport::-webkit-scrollbar-thumb:hover {
-            background: #585b70;
-        }
     </style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
 </head>
 <body>
     <div id="terminal"></div>
-    <div id="scroll-indicator">↓ New output (PgDn or Ctrl+End)</div>
+    <div id="scroll-indicator">↓ New output (PgDn)</div>
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-web-links@0.9.0/lib/xterm-addon-web-links.min.js"></script>
@@ -58,11 +56,11 @@
         (function() {
             const terminal = new Terminal({
                 fontSize: 14,
-                fontFamily: '"Fira Code", "JetBrains Mono", "Cascadia Code", Menlo, Monaco, "Courier New", monospace',
+                fontFamily: 'Menlo, Monaco, "Courier New", monospace',
                 cursorBlink: true,
                 cursorStyle: 'bar',
                 scrollback: 50000,
-                scrollOnUserInput: false,  // TMUX-like: don't auto-scroll on input
+                scrollOnUserInput: false,
                 theme: {
                     background: '#1e1e2e',
                     foreground: '#cdd6f4',
@@ -97,19 +95,15 @@
             terminal.open(document.getElementById('terminal'));
             fitAddon.fit();
 
-            // === TMUX-LIKE SCROLL MODE ===
-            // NO auto-scroll - user controls everything with PageUp/Down
-
+            // Scroll tracking
             let hasNewOutput = false;
 
-            // Check if at bottom
             function isAtBottom() {
-                const viewport = document.querySelector('.xterm-viewport');
-                if (!viewport) return true;
-                return viewport.scrollTop + viewport.clientHeight >= viewport.scrollHeight - 50;
+                const vp = document.querySelector('.xterm-viewport');
+                if (!vp) return true;
+                return vp.scrollTop + vp.clientHeight >= vp.scrollHeight - 50;
             }
 
-            // Show/hide new output indicator
             function updateIndicator() {
                 if (hasNewOutput && !isAtBottom()) {
                     indicator.classList.add('visible');
@@ -119,31 +113,49 @@
                 }
             }
 
-            // Track scroll position
             const viewport = document.querySelector('.xterm-viewport');
-            if (viewport) {
-                viewport.addEventListener('scroll', updateIndicator);
-            }
+            if (viewport) viewport.addEventListener('scroll', updateIndicator);
 
-            // WebSocket connection
+            // === TTYD WebSocket Protocol ===
             const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = protocol + '//' + location.host + '/ws';
-            const socket = new WebSocket(wsUrl);
+            const socket = new WebSocket(wsUrl, ['tty']);
+
+            const textEncoder = new TextEncoder();
+            const textDecoder = new TextDecoder();
+
+            // ttyd message types
+            const MSG_INPUT = '0';
+            const MSG_RESIZE = '1';
+            const MSG_OUTPUT = '0';
+            const MSG_SET_WINDOW_TITLE = '1';
+            const MSG_SET_PREFS = '2';
 
             socket.binaryType = 'arraybuffer';
 
             socket.onopen = function() {
-                console.log('WebSocket connected');
+                console.log('Connected to ttyd');
             };
 
             socket.onmessage = function(event) {
                 const data = new Uint8Array(event.data);
-                terminal.write(data);
+                const cmd = String.fromCharCode(data[0]);
+                const payload = data.slice(1);
 
-                // Mark that there's new output if not at bottom
-                if (!isAtBottom()) {
-                    hasNewOutput = true;
-                    updateIndicator();
+                switch(cmd) {
+                    case MSG_OUTPUT:
+                        terminal.write(payload);
+                        if (!isAtBottom()) {
+                            hasNewOutput = true;
+                            updateIndicator();
+                        }
+                        break;
+                    case MSG_SET_WINDOW_TITLE:
+                        document.title = textDecoder.decode(payload);
+                        break;
+                    case MSG_SET_PREFS:
+                        // Ignore server preferences, we use our own
+                        break;
                 }
             };
 
@@ -151,28 +163,47 @@
                 terminal.write('\r\n\x1b[31mConnection closed. Refresh to reconnect.\x1b[0m\r\n');
             };
 
-            socket.onerror = function(error) {
-                console.error('WebSocket error:', error);
+            socket.onerror = function(err) {
+                console.error('WebSocket error:', err);
             };
 
-            // Send terminal input to server
+            // Send input to ttyd
             terminal.onData(function(data) {
                 if (socket.readyState === WebSocket.OPEN) {
-                    socket.send(new TextEncoder().encode(data));
+                    const msg = new Uint8Array(data.length + 1);
+                    msg[0] = MSG_INPUT.charCodeAt(0);
+                    for (let i = 0; i < data.length; i++) {
+                        msg[i + 1] = data.charCodeAt(i);
+                    }
+                    socket.send(msg);
                 }
             });
 
-            // Handle window resize
+            // Send resize to ttyd
+            function sendResize() {
+                if (socket.readyState === WebSocket.OPEN) {
+                    const dims = fitAddon.proposeDimensions();
+                    if (dims) {
+                        const msg = MSG_RESIZE + JSON.stringify({cols: dims.cols, rows: dims.rows});
+                        socket.send(textEncoder.encode(msg));
+                    }
+                }
+            }
+
             window.addEventListener('resize', function() {
                 fitAddon.fit();
-                const dims = fitAddon.proposeDimensions();
-                if (dims && socket.readyState === WebSocket.OPEN) {
-                    const resizeMsg = JSON.stringify({cols: dims.cols, rows: dims.rows});
-                    socket.send(new TextEncoder().encode('\x01' + resizeMsg));
-                }
+                sendResize();
             });
 
-            // === KEYBOARD NAVIGATION (tmux-like) ===
+            // Initial resize after connection
+            socket.addEventListener('open', function() {
+                setTimeout(function() {
+                    fitAddon.fit();
+                    sendResize();
+                }, 100);
+            });
+
+            // Keyboard navigation
             document.addEventListener('keydown', function(e) {
                 const scrollAmount = terminal.rows - 2;
 
@@ -186,18 +217,15 @@
                     updateIndicator();
                 }
                 else if (e.key === 'End' && e.ctrlKey) {
-                    // Ctrl+End = jump to bottom (like tmux prefix + End)
                     e.preventDefault();
                     terminal.scrollToBottom();
                     hasNewOutput = false;
                     updateIndicator();
                 }
                 else if (e.key === 'Home' && e.ctrlKey) {
-                    // Ctrl+Home = jump to top
                     e.preventDefault();
                     terminal.scrollToTop();
                 }
-                // Arrow keys for fine scrolling
                 else if (e.key === 'ArrowUp' && e.shiftKey) {
                     e.preventDefault();
                     terminal.scrollLines(-1);
@@ -209,19 +237,7 @@
                 }
             });
 
-            // Mouse wheel scrolling (natural)
-            document.addEventListener('wheel', function(e) {
-                // Let xterm handle normal scroll
-                // Shift+wheel for faster scroll
-                if (e.shiftKey) {
-                    e.preventDefault();
-                    const amount = e.deltaY > 0 ? 10 : -10;
-                    terminal.scrollLines(amount);
-                    updateIndicator();
-                }
-            }, { passive: false });
-
-            // Click on indicator to scroll to bottom
+            // Click indicator to scroll down
             indicator.addEventListener('click', function() {
                 terminal.scrollToBottom();
                 hasNewOutput = false;
