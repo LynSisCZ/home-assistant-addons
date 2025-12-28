@@ -66,8 +66,15 @@ run_claude() {
     fi
     sleep 0.5
 
-    # Use eval to properly handle IS_SANDBOX=1 prefix
-    eval "exec $cmd $extra_args"
+    # Export IS_SANDBOX if bypass mode, then exec claude
+    if [[ "$cmd" == IS_SANDBOX=1* ]]; then
+        export IS_SANDBOX=1
+        # Remove IS_SANDBOX=1 prefix and exec the rest
+        cmd="${cmd#IS_SANDBOX=1 }"
+        exec $cmd $extra_args
+    else
+        exec $cmd $extra_args
+    fi
 }
 
 launch_claude_new() {
