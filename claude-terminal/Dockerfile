@@ -2,20 +2,34 @@ ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
 # Install all required packages in single layer
-# Includes: Node.js, PostgreSQL client, Git, terminal tools
 RUN apk add --no-cache \
+    # Core
     nodejs \
     npm \
     bash \
     curl \
-    nano \
-    git \
-    openssh-client \
-    postgresql-client \
-    ttyd \
-    jq \
+    # Python & Libraries
     python3 \
     py3-pip \
+    py3-requests \
+    py3-aiohttp \
+    py3-yaml \
+    py3-beautifulsoup4 \
+    # Development Tools
+    git \
+    vim \
+    nano \
+    openssh-client \
+    # Database
+    postgresql-client \
+    # Network Utilities
+    wget \
+    netcat-openbsd \
+    # Productivity Tools
+    jq \
+    tree \
+    # Terminal
+    ttyd \
     && npm config set registry https://registry.npmjs.org/ \
     && npm config set fetch-retries 3 \
     && npm config set fetch-timeout 300000 \
