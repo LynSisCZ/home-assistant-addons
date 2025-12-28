@@ -77,25 +77,18 @@ start_terminal() {
     bashio::log.info "Skip permissions: $(bashio::config 'skip_permissions' 'false')"
     bashio::log.info "Auto-launch: $(bashio::config 'auto_launch_claude' 'true')"
 
-    # Use custom HTML if available (better scroll handling)
-    local ttyd_args=(
-        --port "$port"
-        --interface 0.0.0.0
-        --writable
-    )
-
-    if [ -f /opt/html/index.html ]; then
-        ttyd_args+=(--index /opt/html/index.html)
-        bashio::log.info "Using custom terminal UI with auto-scroll"
-    else
-        ttyd_args+=(
-            --client-option fontSize=14
-            --client-option scrollback=50000
-            --client-option cursorBlink=true
-        )
-    fi
-
-    exec ttyd "${ttyd_args[@]}" bash -c "$launch_cmd"
+    # Use ttyd with enhanced options
+    exec ttyd \
+        --port "$port" \
+        --interface 0.0.0.0 \
+        --writable \
+        --client-option fontSize=14 \
+        --client-option fontFamily="'JetBrains Mono', 'Fira Code', Menlo, Monaco, monospace" \
+        --client-option scrollback=50000 \
+        --client-option cursorBlink=true \
+        --client-option cursorStyle=bar \
+        --client-option theme='{"background":"#1e1e2e","foreground":"#cdd6f4","cursor":"#f5e0dc","selection":"#45475a","black":"#45475a","red":"#f38ba8","green":"#a6e3a1","yellow":"#f9e2af","blue":"#89b4fa","magenta":"#f5c2e7","cyan":"#94e2d5","white":"#bac2de"}' \
+        bash -c "$launch_cmd"
 }
 
 # Main
